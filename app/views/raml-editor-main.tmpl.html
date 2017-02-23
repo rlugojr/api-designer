@@ -14,19 +14,10 @@
 
   <ul class="menubar">
     <li class="menu-item menu-item-ll">
-      <raml-editor-new-file-button></raml-editor-new-file-button>
-    </li>
-    <li ng-show="supportsFolders" class="menu-item menu-item-ll">
-      <raml-editor-new-folder-button></raml-editor-new-folder-button>
+      <raml-editor-project-button></raml-editor-project-button>
     </li>
     <li class="menu-item menu-item-ll">
-      <raml-editor-save-file-button></raml-editor-save-file-button>
-    </li>
-    <li class="menu-item menu-item-ll">
-      <raml-editor-import-button></raml-editor-import-button>
-    </li>
-    <li ng-show="canExportFiles()" class="menu-item menu-item-ll">
-      <raml-editor-export-files-button></raml-editor-export-files-button>
+      <raml-editor-view-button></raml-editor-view-button>
     </li>
     <li class="menu-item menu-item-ll">
       <raml-editor-help-button></raml-editor-help-button>
@@ -64,15 +55,11 @@
     <div id="consoleAndEditor" ng-show="getIsConsoleVisible()" ng-splitter="vertical" ng-splitter-collapse-target="next" ng-splitter-min-width="470"><div class="split split-right">&nbsp;</div></div>
 
     <div ng-show="getIsConsoleVisible()" role="preview-wrapper" class="raml-console-embedded">
-      <raml-console
-        raml="raml"
-        options="{
-          singleView: true,
-          disableThemeSwitcher: true,
-          disableRamlClientGenerator: true,
-          disableTitle: true
-        }"
-        style="padding: 0; margin-top: 0;"></raml-console>
+      <div ng-if="!splitterCollapsed_consoleAndEditor && getIsConsoleVisible()">
+        <raml-console raml="raml"
+            options="{ singleView: true, disableThemeSwitcher: true, disableRamlClientGenerator: true, disableTitle: true}"
+            style="padding: 0; margin-top: 0;"></raml-console>
+      </div>
     </div>
   </div>
 </div>

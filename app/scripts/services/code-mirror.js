@@ -3,7 +3,7 @@
 
   angular.module('codeMirror', ['raml', 'ramlEditorApp', 'codeFolding'])
     .factory('codeMirror', function (
-      $rootScope, ramlHint, codeMirrorHighLight, generateSpaces, generateTabs,
+      $rootScope, ramlSuggest, codeMirrorHighLight, generateSpaces, generateTabs,
       getFoldRange, isArrayStarter, getSpaceCount, getTabCount, config, extractKeyValue
     ) {
       var editor  = null;
@@ -91,22 +91,14 @@
         'Shift-Ctrl-T': 'toggleTheme'
       };
 
-      var autocomplete = function onChange(cm) {
-        if (cm.getLine(cm.getCursor().line).trim()) {
-          cm.execCommand('autocomplete');
-        }
-      };
-
       service.configureEditor = function(editor, extension) {
         var mode = MODES[extension] || MODES.raml;
 
         editor.setOption('mode', mode);
         if (mode.name === 'raml') {
           editor.setOption('extraKeys', ramlKeys);
-          editor.on('change', autocomplete);
         } else {
           editor.setOption('extraKeys', defaultKeys);
-          editor.off('change', autocomplete);
         }
       };
 
@@ -237,7 +229,9 @@
 
         CodeMirror.commands.autocomplete = function (cm) {
           CodeMirror.showHint(cm, CodeMirror.hint.raml, {
-            ghosting: true
+            completeSingle: false,
+            ghosting: false,
+            async: true
           });
         };
 
@@ -248,7 +242,7 @@
         CodeMirror.defineMode('raml', codeMirrorHighLight.highlight);
         CodeMirror.defineMIME('text/x-raml', 'raml');
 
-        CodeMirror.registerHelper('hint', 'raml', ramlHint.autocompleteHelper);
+        CodeMirror.registerHelper('hint', 'raml', ramlSuggest.autocompleteHelper.bind(ramlSuggest));
         CodeMirror.registerHelper('fold', 'indent', getFoldRange);
       })();
 

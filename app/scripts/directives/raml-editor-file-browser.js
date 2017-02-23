@@ -96,6 +96,11 @@
           return fileBrowser.selectFile(target);
         };
 
+        $scope.$on('event:raml-editor-file-select', function (event, filePath) {
+          var file = ramlRepository.getByPath(filePath);
+          fileBrowser.selectFile(file);
+        });
+
         fileBrowser.selectFile = function selectFile(file) {
           // If we select a file that is already active, just modify 'currentTarget', no load needed
           if (fileBrowser.selectedFile && fileBrowser.selectedFile.$$hashKey === file.$$hashKey) {
@@ -117,8 +122,7 @@
                   file.dirty = true;
                 }
               });
-            })
-          ;
+            });
         };
 
         fileBrowser.selectDirectory = function selectDirectory(directory) {
@@ -209,8 +213,7 @@
         });
 
         $scope.$on('event:raml-editor-filetree-modified', function (event, target) {
-          var parent = ramlRepository.getParent(target);
-          parent.sortChildren();
+          ramlRepository.getParent(target).sortChildren();
         });
 
         $scope.$on('event:raml-editor-file-removed', function (event, file) {

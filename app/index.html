@@ -36,6 +36,25 @@
         <raml-editor></raml-editor>
     </div>
 
+    <!-- build:js({.,.tmp,app}) scripts/api-designer-parser.js -->
+    <script src=".tmp/js-traverse/js-traverse.js"></script>
+    <script src="bower_components/raml-1-parser/raml-json-validation.js"></script>
+    <script src="bower_components/raml-1-parser/raml-xml-validation.js"></script>
+    <script src="bower_components/raml-1-parser/raml-1-parser.js"></script>
+    <!-- endbuild -->
+
+    <script>
+      (function (w) {
+        if (!w.Worker) return;
+        var proxy = location.search.indexOf('bypassProxy=true') > -1 ? '' : '/proxy/';
+        try {
+          w.RAML.worker = new Worker('scripts/api-designer-worker.js#parser=./api-designer-parser.js&proxy=' + proxy);
+        } catch (e) {
+          console.error('Failed to create worker, defaulting to main thread', e);
+        }
+      })(window);
+    </script>
+
     <!-- build:js({.,.tmp,app}) scripts/api-designer-vendor.js -->
     <!--
       jQuery has to go before AngularJS otherwise we'll end up with jqLite,
@@ -50,11 +69,7 @@
     <script src="bower_components/angular-sanitize/angular-sanitize.js"></script>
     <script src="bower_components/es5-shim/es5-shim.js"></script>
 
-    <script src="bower_components/raml-1-parser/raml-1-parser.js"></script>
     <script src="bower_components/resolve-url/resolve-url.js"></script>
-    <script src="bower_components/raml-grammar/dist/suggest.js"></script>
-    <script src="bower_components/raml-object-to-raml/dist/raml-object-to-raml.js"></script>
-    <script src="bower_components/swagger-to-raml-object/dist/swagger-to-raml-object.js"></script>
     <script src="bower_components/jszip/jszip.js"></script>
     <script src="bower_components/jszip/jszip-load.js"></script>
     <script src="bower_components/jszip/jszip-deflate.js"></script>
@@ -85,7 +100,8 @@
     <!-- endbuild -->
 
     <!-- build:js({.,.tmp,app}) scripts/api-designer.js -->
-    <script src=".tmp/js-traverse/js-traverse.js"></script>
+    <script src=".tmp/raml-suggestions/raml-suggestions.js"></script>
+    <script src=".tmp/oas-raml-converter/oas-raml-converter.js"></script>
 
     <script src="vendor/scripts/codemirror.js"></script>
     <script src="vendor/scripts/foldcode.js"></script>
@@ -98,6 +114,8 @@
     <script src="vendor/scripts/xml.js"></script>
 
     <script src="scripts/app.js"></script>
+    <script src="scripts/polyfills/array-polyfills.js"></script>
+    <script src="scripts/polyfills/string-polyfills.js"></script>
     <script src="scripts/services/utils.js"></script>
     <script src="scripts/services/config.js"></script>
     <script src="scripts/services/lightweight-dom.js"></script>
@@ -105,11 +123,11 @@
     <script src="scripts/services/code-folding.js"></script>
     <script src="scripts/services/code-mirror.js"></script>
     <script src="scripts/services/code-mirror-errors.js"></script>
-    <script src="scripts/services/raml-hint.js"></script>
     <script src="scripts/services/raml-snippets.js"></script>
     <script src="scripts/services/raml-highlight.js"></script>
     <script src="scripts/services/raml-highlight-config.js"></script>
     <script src="scripts/services/raml-repository.js"></script>
+    <script src="scripts/services/raml-suggest.js"></script>
     <script src="scripts/services/file-system.js"></script>
     <script src="scripts/services/new-file-service.js"></script>
     <script src="scripts/services/new-folder-service.js"></script>
@@ -122,10 +140,13 @@
     <script src="scripts/services/confirm-modal.js"></script>
     <script src="scripts/services/new-name-modal.js"></script>
     <script src="scripts/services/swagger-to-raml.js"></script>
+    <script src="scripts/services/raml-to-swagger.js"></script>
     <script src="scripts/services/import-service.js"></script>
     <script src="scripts/services/import-service-conflict-modal.js"></script>
+    <script src="scripts/services/oas-raml-converter.js"></script>
     <script src="scripts/services/js-traverse.js"></script>
     <script src="scripts/services/ref-parser.js"></script>
+    <script src="scripts/services/worker.js"></script>
     <script src="scripts/filters/string-filters.js"></script>
     <script src="scripts/controllers/raml-editor-main.js"></script>
     <script src="scripts/controllers/raml-editor-main-helpers.js"></script>
@@ -140,11 +161,14 @@
     <script src="scripts/directives/drag-and-drop.js"></script>
     <script src="scripts/directives/raml-editor-context-menu.js"></script>
     <script src="scripts/directives/raml-editor-file-browser.js"></script>
+    <script src="scripts/directives/raml-editor-project-button.js"></script>
     <script src="scripts/directives/raml-editor-save-file-button.js"></script>
+    <script src="scripts/directives/raml-editor-save-all-button.js"></script>
     <script src="scripts/directives/raml-editor-new-folder-button.js"></script>
-    <script src="scripts/directives/raml-editor-new-file-button.js"></script>
-    <script src="scripts/directives/raml-editor-export-files-button.js"></script>
+    <script src="scripts/directives/raml-editor-new-file-menu.js"></script>
+    <script src="scripts/directives/raml-editor-export-menu.js"></script>
     <script src="scripts/directives/raml-editor-import-button.js"></script>
+    <script src="scripts/directives/raml-editor-view-button.js"></script>
     <script src="scripts/directives/raml-editor-help-button.js"></script>
     <script src="scripts/directives/ui-tree-node.js"></script>
     <!-- endbuild -->

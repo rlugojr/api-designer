@@ -14,6 +14,10 @@
 * [Notes API](http://static-anypoint-mulesoft-com.s3.amazonaws.com/API_examples_notebooks/raml-design3.html)
 * [Congo API for Drone Delivery](http://static-anypoint-mulesoft-com.s3.amazonaws.com/API_examples_notebooks/raml-design2.html)
 
+## API Designer online
+
+There is an online preview version of the API Designer, check it out a [different branch](http://mulesoft.github.io/api-designer/).
+
 ## Running Locally
 
 ```
@@ -90,9 +94,9 @@ The following example details how to embed the API Designer:
 
         return service;
       })
-      .run(function (MyFileSystem, config, $rootScope) {
+      .config(function (fileSystemProvider, MyFileSystem, $rootScope) {
         // Set MyFileSystem as the filesystem to use
-        config.set('fsFactory', 'MyFileSystem');
+        fileSystemProvider.setFileSystemFactory(MyFileSystem);
         
         // In case you want to send notifications to the user
         // (for instance, that he must login to save).

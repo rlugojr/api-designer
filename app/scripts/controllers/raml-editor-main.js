@@ -4,7 +4,7 @@
   angular.module('ramlEditorApp')
     .constant('UPDATE_RESPONSIVENESS_INTERVAL', 800)
     .controller('ramlEditorMain', function (UPDATE_RESPONSIVENESS_INTERVAL, $scope, $rootScope, $timeout, $window,
-      safeApply, safeApplyWrapper, debounce, throttle, ramlHint, ramlParser, ramlRepository, codeMirror,
+      safeApply, safeApplyWrapper, debounce, ramlWorker, ramlRepository, codeMirror,
       codeMirrorErrors, config, $prompt, $confirm, $modal, mockingServiceClient, $q, ramlEditorMainHelpers
     ) {
       var editor, lineOfCurrentError, currentFile;
@@ -119,60 +119,76 @@
         updateFile();
       };
 
-      $scope.loadRaml = function loadRaml(definition, location) {
-        return ramlParser.loadPath(location, function contentAsync(path) {
-          var file = ramlRepository.getByPath(path);
-
-          if (file) {
-            return (file.loaded ? $q.when(file) : ramlRepository.loadFile({path: path}))
-              .then(function (file) {
-                return file.contents;
-              })
-            ;
-          }
-
-          return $q.reject('ramlEditorMain: loadRaml: contentAsync: ' + path + ': no such path');
-        })
-          .then(function (raml) {
-            return ramlEditorMainHelpers.isApiDefinitionLike(definition) ? raml : null;
-          })
-        ;
+      $scope.loadRaml = function loadRaml(definition, path) {
+        return ramlWorker.ramlParse({path: path, contents: definition}).then(function (raml) {
+          return ramlEditorMainHelpers.isApiDefinitionLike(definition) ? raml : null;
+        });
       };
 
       $scope.clearErrorMarks = function clearErrorMarks() {
         codeMirrorErrors.clearAnnotations();
         $scope.hasErrors = false;
+        $scope.currentErrorCount = 0;
+        $scope.currentWarningCount = 0;
+
+        if (!currentFile || !$scope.fileParsable || currentFile.doc.getValue().trim() === '') {
+          $scope.currentError = undefined;
+          lineOfCurrentError = undefined;
+        }
       };
 
+      var parseTimer;
+      $scope.parsing = 0;
       $scope.$on('event:file-updated', function onFileUpdated() {
         $scope.clearErrorMarks();
 
-        var file = $scope.fileBrowser.selectedFile;
+        $timeout.cancel(parseTimer);
+        parseTimer = $timeout(function defer() {
+          $scope.clearErrorMarks();
+          if (!currentFile || !$scope.fileParsable || currentFile.doc.getValue().trim() === '') { return; }
+          $scope.parsing++;
 
-        if (!file || !$scope.fileParsable || file.contents.trim() === '') {
-          $scope.currentError = undefined;
-          lineOfCurrentError = undefined;
-          return;
-        }
+          $scope.loadRaml(currentFile.doc.getValue(), currentFile.path).then(
+            // parse completed
+            safeApplyWrapper($scope, function completeParse(api) {
+              $scope.parsing--;
+              $scope.clearErrorMarks();
+              if (api && api.path === currentFile.path && $scope.parsing === 0) {
 
-        $scope.loadRaml(file.contents, file.path).then(
-          // success
-          safeApplyWrapper($scope, function success(value) {
-            // hack: we have to make a full copy of an object because console modifies
-            // it later and makes it unusable for mocking service
-            $scope.fileBrowser.selectedFile.raml = angular.copy(value);
+                var issues = api.errors; // errors and warnings
+                if (issues && issues.length > 0) {
+                  $rootScope.$broadcast('event:raml-parser-error', issues);
 
-            $rootScope.$broadcast('event:raml-parsed', value);
-          }),
+                  $scope.currentWarningCount = issues.reduce(function (count, issue) {
+                    return issue.isWarning ? count + 1 : count;
+                  }, 0);
 
-          // failure
-          safeApplyWrapper($scope, function failure(error) {
-            $rootScope.$broadcast('event:raml-parser-error', error);
-          })
-        );
+                  $scope.currentErrorCount = issues.reduce(function (count, issue) {
+                    return !issue.isWarning ? count + 1 : count;
+                  }, 0);
+                }
+
+                if ($scope.currentErrorCount === 0) {
+                  var raml = api.specification;
+                  $rootScope.$broadcast('event:raml-parsed', raml);
+                }
+              }
+            })).catch(
+              // unexpected failure
+              safeApplyWrapper($scope, function failureParse(error) {
+                $scope.parsing--;
+                if (error !== 'aborted' && error.path === currentFile.path && $scope.parsing === 0) {
+                  $scope.currentErrorCount = 0;
+                  $scope.currentWarningCount = 0;
+                  $rootScope.$broadcast('event:raml-parser-error', error.parserErrors || error);
+                }
+              })
+            );
+        }, 700);
       });
 
       $scope.$on('event:raml-parsed', safeApplyWrapper($scope, function onRamlParser(event, raml) {
+        $scope.fileBrowser.selectedFile.raml = raml;
         $scope.raml         = raml;
         $scope.title        = raml && raml.title;
         $scope.version      = raml && raml.version;
@@ -180,19 +196,84 @@
         lineOfCurrentError  = undefined;
       }));
 
-      $scope.$on('event:raml-parser-error', safeApplyWrapper($scope, function onRamlParserError(event, error) {
-        var parserErrors = error.parserErrors || [{line: 0, column: 1, message: error.message}];
-        parserErrors = parserErrors.filter(function (item) {
-          return !item.isWarning;
-        });
+      $scope.$on('event:raml-parser-error', safeApplyWrapper($scope, function onRamlParserError(event, errors) {
+        var parserErrors = Array.isArray(errors) ? errors : [{line: 0, column: 1, message: errors.message, isWarning: errors.isWarning}];
+
         codeMirrorErrors.displayAnnotations(parserErrors.map(function mapErrorToAnnotation(error) {
+          var errorInfo = error;
+          var tracingInfo = { line : undefined, column : undefined, path : undefined };
+          var needErrorPath = error.trace !== undefined;
+
+          function findError(errors, selectedFile) {
+            for (var i = 0; i < errors.length; i++) {
+              var error = errors[i];
+              if (error.path === selectedFile.name) {
+                error.from = errorInfo;
+                return error;
+              }
+              else if (error.trace) {
+                var innerError = findError(error.trace, selectedFile);
+                if (innerError) {
+                  innerError.from = error;
+                  return innerError;
+                }
+              }
+            }
+          }
+
+          if (needErrorPath) {
+            var selectedFile = event.currentScope.fileBrowser.selectedFile;
+            var selectedFilePath = selectedFile.path;
+            var lastDirectoryIndex = selectedFilePath.lastIndexOf('/') + 1;
+            var folderPath = selectedFilePath.substring(selectedFilePath[0] === '/' ? 1 : 0, lastDirectoryIndex);
+
+            errorInfo = findError(error.trace, selectedFile);
+            if (errorInfo) {
+              errorInfo.isWarning = error.isWarning;
+              var rangeFrom = rangePoint(errorInfo.from.range);
+
+              tracingInfo = {
+                line: rangeFrom.line,
+                column: rangeFrom.column,
+                path: folderPath + errorInfo.from.path
+              };
+            } else {
+              // should not happen... todo parser bug
+              errorInfo = {
+                message: error.message,
+                isWarning: error.isWarning
+              };
+              var traceRange = rangePoint(error.range);
+              tracingInfo = {
+                line : traceRange.line,
+                column : traceRange.column,
+                path : folderPath + error.path
+              };
+            }
+          }
+
+          var range = rangePoint(errorInfo.range);
           return {
-            line:    error.line + 1,
-            column:  error.column,
-            message: error.message
+            line          : range.line,
+            column        : range.column,
+            message       : errorInfo.message,
+            severity      : errorInfo.isWarning ? 'warning' : 'error',
+            path          : tracingInfo.path,
+            tracingLine   : tracingInfo.line,
+            tracingColumn : tracingInfo.column
           };
         }));
       }));
+
+      function rangePoint(range) {
+        if (range && range.start) {
+          return {line: 1 + range.start.line, column: range.start.column};
+        }
+        if (range && Array.isArray(range)) {
+          return {line: 1 + range[0], column: range[1]};
+        }
+        return {line: 1, column: 1};
+      }
 
       $scope.openHelp = function openHelp() {
         $modal.open({
@@ -206,19 +287,11 @@
       };
 
       $scope.getIsMockingServiceVisible = function getIsMockingServiceVisible() {
-        if ($scope.mockingServiceDisabled || !$scope.fileParsable) {
-          return false;
-        }
-
-        return true;
+        return !($scope.mockingServiceDisabled || !$scope.fileParsable);
       };
 
       $scope.getIsShelfVisible = function getIsShelfVisible() {
-        if (!$scope.fileParsable) {
-          return false;
-        }
-
-        return true;
+        return $scope.fileParsable;
       };
 
       $scope.getIsConsoleVisible = function getIsConsoleVisible() {
@@ -231,7 +304,28 @@
       };
 
       $scope.getSelectedFileAbsolutePath = function getSelectedFileAbsolutePath() {
-        return extractCurrentFileLabel(currentFile);
+        if (!currentFile) {
+          return '';
+        }
+
+        var status = '';
+        if ($scope.fileParsable) {
+          if ($scope.parsing > 0) {
+            status = 'validating...';
+          } else if ($scope.currentErrorCount || $scope.currentWarningCount) {
+            if ($scope.currentErrorCount) {
+              status += $scope.currentErrorCount + ' ' + ($scope.currentErrorCount > 1 ? 'errors' : 'error');
+            }
+            if ($scope.currentErrorCount && $scope.currentWarningCount) {
+              status += ', ';
+            }
+            if ($scope.currentWarningCount) {
+              status += $scope.currentWarningCount + ' ' + ($scope.currentWarningCount > 1 ? 'warnings' : 'warning');
+            }
+          }
+        }
+
+        return extractCurrentFileLabel(currentFile) + (!status ? '' : ' (' + status + ')');
       };
 
       $scope.$on('event:toggle-theme', function onToggleTheme() {

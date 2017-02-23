@@ -10,6 +10,7 @@
       service.rootDirectory = {
         path: '/',
         children: service.children,
+        isDirectory: true,
         getDirectories: function () {
           return this.children.filter(function(t) { return t.isDirectory; });
         },
@@ -34,6 +35,10 @@
 
       service.getParent = function () {
         return service.rootDirectory;
+      };
+
+      service.exportFiles = function () {
+        return this;
       };
 
       service.loadFile = function (file) {
@@ -74,6 +79,20 @@
         }
 
         return $q.when(file);
+      };
+
+      service.join = function () {
+        return Array.prototype.reduce.call(arguments, function (path, segment) {
+          if (segment == null) {
+            return path;
+          }
+
+          if (segment.charAt(0) === '/') {
+            return segment;
+          }
+
+          return path.replace(/\/$/, '') + '/' + segment;
+        }, '/');
       };
 
       return service;

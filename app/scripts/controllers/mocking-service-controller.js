@@ -18,7 +18,9 @@
         // try to find `baseUri` line
         while (node) {
           if (node.getKey() === 'baseUri') {
-            setLine(node.lineNumber, baseUri, '#');
+            if (node.getValue().text !== $scope.mock.baseUri) {
+              setLine(node.lineNumber, baseUri, '#');
+            }
             return;
           }
 
@@ -80,6 +82,9 @@
       function getMock() {
         loading(mockingService.getMock($scope.fileBrowser.selectedFile)
           .then(setMock)
+          .then(function() {
+            if ($scope.mock) { addBaseUri(); }
+          })
         );
       }
 

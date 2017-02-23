@@ -241,6 +241,13 @@ module.exports = function (grunt) {
             cwd:    'bower_components/api-console/dist/img',
             src:    '*',
             dest:   '<%= yeoman.dist %>/img'
+          },
+
+          {
+            expand: true,
+            cwd:    '<%= yeoman.app %>/scripts/',
+            src:    'api-designer-worker.js',
+            dest:   '<%= yeoman.dist %>/scripts/'
           }
         ]
       }
@@ -264,6 +271,8 @@ module.exports = function (grunt) {
     uglify: {
       dist: {
         files: {
+          '<%= yeoman.dist %>/scripts/api-designer-parser.min.js': '<%= yeoman.dist %>/scripts/api-designer-parser.js',
+          '<%= yeoman.dist %>/scripts/api-designer-worker.min.js': '<%= yeoman.dist %>/scripts/api-designer-worker.js',
           '<%= yeoman.dist %>/scripts/api-designer.min.js':        '<%= yeoman.dist %>/scripts/api-designer.js',
           '<%= yeoman.dist %>/scripts/api-designer-vendor.min.js': '<%= yeoman.dist %>/scripts/api-designer-vendor.js'
         }
@@ -332,15 +341,30 @@ module.exports = function (grunt) {
     },
 
     browserify: {
+      oasRamlConverter: {
+        options: {
+          transform: ['browserify-global-shim', 'babelify'],
+          browserifyOptions: {
+            standalone: 'oasRamlConverter'
+          }
+        },
+        files: {
+          '.tmp/oas-raml-converter/oas-raml-converter.js': 'node_modules/oas-raml-converter/index.js'
+        }
+      },
       jsTraverse: {
         options: {
           browserifyOptions: {
             standalone: 'jsTraverse.traverse'
           }
         },
-
         files: {
           '.tmp/js-traverse/js-traverse.js': 'node_modules/traverse/index.js'
+        }
+      },
+      ramlSuggestions: {
+        files: {
+           '.tmp/raml-suggestions/raml-suggestions.js': 'node_modules/raml-suggestions/dist/browser-main.js'
         }
       }
     }
@@ -370,6 +394,7 @@ module.exports = function (grunt) {
   grunt.registerTask('server', [
     'jshint-once',
     'browserify:jsTraverse',
+    'browserify:oasRamlConverter',
     'less-and-autoprefixer',
     'connect:livereload',
     'open',
@@ -380,6 +405,8 @@ module.exports = function (grunt) {
     'jshint-once',
     'clean:build',
     'browserify:jsTraverse',
+    'browserify:ramlSuggestions',
+    'browserify:oasRamlConverter',
     'useminPrepare',
     'less-and-autoprefixer',
     'ngtemplates',
